@@ -122,10 +122,7 @@ function Landing() {
             <div className="flex items-center gap-2 text-xs font-medium uppercase tracking-widest text-muted-foreground">
               <Lock className="h-3.5 w-3.5" /> Acesso restrito
             </div>
-            <h2 className="mt-2 font-display text-2xl font-semibold">Entrar no SLAM</h2>
-            <p className="mt-1 text-sm text-muted-foreground">
-              Use qualquer senha de 8 dígitos para testar a interface.
-            </p>
+            <h2 className="mt-2 font-display text-2xl font-semibold">Acesso ao sistema</h2>
 
             <form onSubmit={handleSubmit} className="mt-6 space-y-4">
               <div className="space-y-1.5">

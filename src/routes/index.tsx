@@ -153,9 +153,8 @@ function Landing() {
                   placeholder="••••••••"
                   autoComplete="current-password"
                 />
-                <div className="flex items-center justify-between text-[11px] text-muted-foreground">
+                <div className="flex items-center text-[11px] text-muted-foreground">
                   <span>{password.length}/8 dígitos</span>
-                  <span>Demonstração · sem persistência</span>
                 </div>
               </div>
               <Button

@@ -233,7 +233,7 @@ function Conferencia() {
         {/* Pipeline */}
         <Card className="shadow-elev">
           <CardHeader>
-            <CardTitle className="text-base">Pipeline da automação</CardTitle>
+            <CardTitle className="text-base">Painel da automação</CardTitle>
             <p className="text-xs text-muted-foreground">
               Cada etapa é rastreada e auditável
             </p>
@@ -244,7 +244,7 @@ function Conferencia() {
               { t: "Disparo do webhook Make.com", d: "hook.us2.make.com/… encaminha o arquivo" },
               { t: "Extração no Google Gemini", d: "IA reconhece itens, quantidades, peso e NCM" },
               { t: "Consulta ao Google Sheets", d: "Base de referência interna é lida em tempo real" },
-              { t: "Diagnóstico devolvido ao SLAM", d: "Conformes, divergentes, faltantes e incorretos" },
+              { t: "Diagnóstico", d: "Conformes, divergentes, faltantes e incorretos" },
             ].map((s, i) => (
               <div key={i} className="flex items-start gap-3 rounded-lg border border-border bg-background p-3">
                 <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-navy text-[11px] font-semibold text-white">

@@ -15,10 +15,10 @@ export const Route = createFileRoute("/app/relatorios")({
 });
 
 const reports = [
-  { id: "R-2026-0728", nav: "MSC BEATRICE", bls: 12, div: 4, falt: 1, gerado: "28/07 08:12", status: "Assinado" },
-  { id: "R-2026-0727", nav: "MAERSK KOWLOON", bls: 9, div: 2, falt: 0, gerado: "27/07 19:44", status: "Assinado" },
-  { id: "R-2026-0727", nav: "HAMBURG BAY", bls: 6, div: 1, falt: 0, gerado: "27/07 14:03", status: "Pendente" },
-  { id: "R-2026-0726", nav: "COSCO PACIFIC", bls: 15, div: 6, falt: 2, gerado: "26/07 22:31", status: "Assinado" },
+  { id: "R-2026-0728", nav: "WS BAHIA", bls: 12, div: 4, falt: 1, gerado: "28/07 08:12", status: "Assinado" },
+  { id: "R-2026-0727", nav: "WS ATLÂNTICO", bls: 9, div: 2, falt: 0, gerado: "27/07 19:44", status: "Assinado" },
+  { id: "R-2026-0727", nav: "WS SALVADOR", bls: 6, div: 1, falt: 0, gerado: "27/07 14:03", status: "Pendente" },
+  { id: "R-2026-0726", nav: "WS RECÔNCAVO", bls: 15, div: 6, falt: 2, gerado: "26/07 22:31", status: "Assinado" },
 ];
 
 function Relatorios() {

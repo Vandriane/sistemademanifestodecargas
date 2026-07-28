@@ -118,7 +118,7 @@ function AppShell() {
               Sistema de Leitura Automática de Manifesto de Cargas
             </div>
             <div className="truncate text-sm font-semibold text-foreground">
-              Console operacional · Terminal Rio Grande
+              Console operacional · Tecon Salvador
             </div>
           </div>
           <div className="ml-auto flex items-center gap-3">

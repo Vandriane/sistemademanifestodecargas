@@ -32,3 +32,5 @@ dist-ssr
 *.sw?
 
 AGENTS.md
+.AGENTS.node_modules
+AGENTS

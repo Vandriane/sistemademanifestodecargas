@@ -190,7 +190,7 @@ function Dashboard() {
             </p>
           </CardHeader>
           <CardContent className="h-72">
-            <ResponsiveContainer width="100%" height="100%">
+            <ResponsiveContainer width="100%" height="80%">
               <PieChart>
                 <Pie
                   data={donut}
@@ -278,7 +278,6 @@ function Dashboard() {
         </Card>
       </div>
 
-      {/* Recent */}
       <Card className="shadow-elev">
         <CardHeader className="flex flex-row items-center justify-between space-y-0">
           <div>

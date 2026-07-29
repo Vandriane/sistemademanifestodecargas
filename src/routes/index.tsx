@@ -66,17 +66,12 @@ function Landing() {
             </div>
           </div>
         </div>
-        <div className="hidden items-center gap-6 text-sm text-white/70 md:flex">
-          <a href="#produto" className="hover:text-white">Produto</a>
-          <a href="#seguranca" className="hover:text-white">Segurança</a>
-          <a href="#login" className="hover:text-white">Entrar</a>
-        </div>
         <Link
-          to="/"
+          to="#login"
           hash="login"
           className="rounded-md bg-turquoise px-4 py-2 text-sm font-semibold text-navy-deep transition hover:bg-turquoise-soft"
         >
-          Login e Senha
+          Fazer Login
         </Link>
       </header>
 

@@ -106,4 +106,4 @@ export function runDiagnostic(
 }
 
 export const MAKE_WEBHOOK_URL =
-  "https://hook.us2.make.com/wopg4wr34bvj4rrynhsdgzd7vkmkh4tr";
+  "https://hook.us2.make.com/lhsa1on7fjosfxs6mas9thltqbrd0cjm";

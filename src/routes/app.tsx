@@ -144,7 +144,7 @@ function AppShell() {
         </main>
 
         <footer className="border-t border-border bg-background/70 px-4 py-4 text-center text-xs text-muted-foreground lg:px-8">
-          Projeto desenvolvido para fins educativos na KODIE Academy.
+          Projeto desenvolvido pela equipe Linus Torvalds para fins educativos na KODIE Academy.
         </footer>
       </div>
     </div>

@@ -1,32 +1,18 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useMemo, useRef, useState } from "react";
-import {
-  UploadCloud,
-  FileText,
-  Loader2,
-  CheckCircle2,
-  AlertTriangle,
-  XCircle,
-  PackageX,
-  Sparkles,
-  ArrowRight,
-  Download,
-  RefreshCcw,
-} from "lucide-react";
+import { UploadCloud,  FileText,  Loader2,  CheckCircle2,  AlertTriangle,  XCircle,  PackageX,  Sparkles, ArrowRight, RefreshCcw, } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { toast } from "sonner";
-import {
-  REFERENCE_BASE,
-  SAMPLE_EXTRACTED,
-  runDiagnostic,
-  MAKE_WEBHOOK_URL,
-  type DiagnosticRow,
-  type DiagnosticStatus,
-} from "@/lib/reference-data";
 import { cn } from "@/lib/utils";
+import {
+  uploadManifestToMake,
+  pollSheetForResult,
+  type ConferenceResult,
+  type SheetItem,
+} from "@/lib/make-integration";
 
 export const Route = createFileRoute("/app/conferencia")({
   component: Conferencia,
@@ -38,90 +24,118 @@ export const Route = createFileRoute("/app/conferencia")({
   }),
 });
 
-type Phase = "idle" | "uploading" | "extracting" | "matching" | "done";
+type Phase = "idle" | "uploading" | "processing" | "done" | "error";
+type StatusFilter = "all" | "corretos" | "divergentes" | "incorretos" | "faltantes";
+type ResultRow = SheetItem & { status: Exclude<StatusFilter, "all"> };
 
 function Conferencia() {
   const inputRef = useRef<HTMLInputElement>(null);
   const [file, setFile] = useState<File | null>(null);
   const [phase, setPhase] = useState<Phase>("idle");
   const [progress, setProgress] = useState(0);
-  const [rows, setRows] = useState<DiagnosticRow[] | null>(null);
-  const [filter, setFilter] = useState<DiagnosticStatus | "all">("all");
-  const [webhookStatus, setWebhookStatus] = useState<string>("");
+  const [result, setResult] = useState<ConferenceResult | null>(null);
+  const [filter, setFilter] = useState<StatusFilter>("all");
+  const [statusMessage, setStatusMessage] = useState("");
+  const [errorMessage, setErrorMessage] = useState("");
 
   const summary = useMemo(() => {
-    const src = rows ?? [];
+    if (!result) return { total: 0, corretos: 0, divergentes: 0, incorretos: 0, faltantes: 0 };
     return {
-      total: src.length,
-      ok: src.filter((r) => r.status === "ok").length,
-      divergente: src.filter((r) => r.status === "divergente").length,
-      faltante: src.filter((r) => r.status === "faltante").length,
-      incorreto: src.filter((r) => r.status === "incorreto").length,
+      total: result.corretos.length + result.divergentes.length + result.incorretos.length + result.faltantes.length,
+      corretos: result.corretos.length,
+      divergentes: result.divergentes.length,
+      incorretos: result.incorretos.length,
+      faltantes: result.faltantes.length,
     };
-  }, [rows]);
+  }, [result]);
 
-  const filtered = useMemo(() => {
-    if (!rows) return [];
-    return filter === "all" ? rows : rows.filter((r) => r.status === filter);
-  }, [rows, filter]);
+  const filteredItems = useMemo<ResultRow[]>(() => {
+    if (!result) return [];
+    if (filter === "all") {
+      return [
+        ...result.corretos.map((item) => ({ ...item, status: "corretos" as const })),
+        ...result.divergentes.map((item) => ({ ...item, status: "divergentes" as const })),
+        ...result.incorretos.map((item) => ({ ...item, status: "incorretos" as const })),
+        ...result.faltantes.map((item) => ({ ...item, status: "faltantes" as const })),
+      ];
+    }
+    return result[filter].map((item) => ({ ...item, status: filter }));
+  }, [result, filter]);
 
-  const handleFiles = (files: FileList | null) => {
+ const handleFiles = (files: FileList | null) => {
     if (!files?.length) return;
-    setFile(files[0]);
-    setRows(null);
-    setPhase("idle");
-  };
-
-  const startAnalysis = async () => {
-    if (!file) return toast.error("Anexe um manifesto (PDF, imagem ou planilha).");
-
-    setPhase("uploading");
-    setProgress(10);
-
-    // Fire webhook (non-blocking; demo mode).
-    try {
-      const form = new FormData();
-      form.append("file", file);
-      form.append("bl_reference_count", String(REFERENCE_BASE.length));
-      form.append("source", "SLAM");
-      const res = await fetch(MAKE_WEBHOOK_URL, { method: "POST", body: form, mode: "no-cors" });
-      setWebhookStatus(`Enviado ao Make (${res.type || "ok"})`);
-    } catch {
-      setWebhookStatus("Enviado ao Make (modo demonstração)");
+    const selectedFile = files[0];
+    
+    const validTypes = [
+      "application/pdf", 
+      "image/png", 
+      "image/jpeg", 
+      "image/jpg",
+      "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", // XLSX
+      "text/csv" // CSV
+    ];
+    
+    if (!validTypes.includes(selectedFile.type)) {
+      toast.error("Formato inválido. Aceitamos PDF, PNG, JPG, XLSX ou CSV.");
+      return;
     }
 
-    await tick(400); setProgress(35); setPhase("extracting");
-    await tick(900); setProgress(65); setPhase("matching");
-    await tick(900); setProgress(90);
-    const diag = runDiagnostic(REFERENCE_BASE, SAMPLE_EXTRACTED);
-    setRows(diag);
-    setProgress(100);
-    setPhase("done");
-    toast.success("Diagnóstico concluído em segundos.");
+    if (selectedFile.size > 20 * 1024 * 1024) {
+      toast.error("Arquivo muito grande. Máximo 20MB.");
+      return;
+    }
+
+    setFile(selectedFile);
+    setResult(null);
+    setPhase("idle");
+    setErrorMessage("");
+  };
+
+const startAnalysis = async () => {
+    if (!file) {
+      toast.error("Anexe um manifesto.");
+      return;
+    }
+
+    setPhase("uploading");
+    setProgress(15);
+    setStatusMessage("Enviando manifesto para a IA...");
+    setErrorMessage("");
+
+    try {
+      await uploadManifestToMake(file);
+
+      setPhase("processing");
+      setProgress(30);
+      setStatusMessage("Processando com IA e comparando com a base de referência...");
+
+      const conferenceResult = await pollSheetForResult((message) => {
+        setStatusMessage(message);
+        setProgress((p) => Math.min(p + 8, 90));
+      });
+
+      setResult(conferenceResult);
+      setProgress(100);
+      setPhase("done");
+      setStatusMessage("Conferência concluída com sucesso!");
+      toast.success("Conferência concluída!");
+    } catch (error) {
+      console.error("Error during analysis:", error);
+      setPhase("error");
+      setErrorMessage(error instanceof Error ? error.message : "Erro ao processar manifesto.");
+      toast.error("Erro ao processar manifesto.");
+    }
   };
 
   const reset = () => {
     setFile(null);
-    setRows(null);
+    setResult(null);
     setPhase("idle");
     setProgress(0);
-    setWebhookStatus("");
+    setStatusMessage("");
+    setErrorMessage("");
+    setFilter("all");
     if (inputRef.current) inputRef.current.value = "";
-  };
-
-  const exportCsv = () => {
-    if (!rows) return;
-    const header = "container,bl,descricao,status,observacoes\n";
-    const body = rows
-      .map((r) => [r.container, r.bl, r.descricao, r.status, r.diffs.join(" | ")].join(","))
-      .join("\n");
-    const blob = new Blob([header + body], { type: "text/csv" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = "conferencia-slam.csv";
-    a.click();
-    URL.revokeObjectURL(url);
   };
 
   return (
@@ -164,8 +178,9 @@ function Conferencia() {
                 ref={inputRef}
                 type="file"
                 className="hidden"
-                accept=".pdf,.png,.jpg,.jpeg,.xlsx,.xls,.csv"
+                accept=".pdf,.png,.jpg,.jpeg,.xlsx,.csv"
                 onChange={(e) => handleFiles(e.target.files)}
+                disabled={phase !== "idle"}
               />
               {file ? (
                 <>
@@ -182,7 +197,7 @@ function Conferencia() {
                     Arraste o BL aqui ou clique para selecionar
                   </div>
                   <div className="text-xs text-muted-foreground">
-                    A IA identifica contêiner, quantidade, unidade, peso e NCM
+                    PDF, imagem ou planilha · Máx 20MB
                   </div>
                 </>
               )}
@@ -191,40 +206,36 @@ function Conferencia() {
             <div className="flex flex-wrap gap-2">
               <Button
                 onClick={startAnalysis}
-                disabled={phase !== "idle" && phase !== "done"}
+                disabled={phase !== "idle" && phase !== "done" && phase !== "error"}
                 className="bg-navy text-white hover:bg-navy-deep"
               >
-                {phase !== "idle" && phase !== "done" ? (
+                {phase !== "idle" && phase !== "done" && phase !== "error" ? (
                   <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Processando…</>
                 ) : (
                   <><Sparkles className="mr-2 h-4 w-4" /> Analisar com IA</>
                 )}
               </Button>
-              <Button variant="outline" onClick={reset}>
+              <Button
+                variant="outline"
+                onClick={reset}
+                disabled={phase === "uploading" || phase === "processing"}
+              >
                 <RefreshCcw className="mr-2 h-4 w-4" /> Limpar
               </Button>
-              {rows && (
-                <Button variant="outline" onClick={exportCsv}>
-                  <Download className="mr-2 h-4 w-4" /> Exportar CSV
-                </Button>
-              )}
             </div>
 
-            {phase !== "idle" && (
+            {phase !== "idle" && phase !== "done" && (
               <div className="space-y-2 rounded-lg border border-border bg-muted/40 p-4">
                 <div className="flex items-center justify-between text-xs">
                   <span className="font-semibold text-foreground">
-                    {phase === "uploading" && "1/3 · Enviando para Make webhook"}
-                    {phase === "extracting" && "2/3 · Gemini extraindo itens do BL"}
-                    {phase === "matching" && "3/3 · Comparando com Google Sheets"}
-                    {phase === "done" && "Concluído"}
+                    {phase === "uploading" && "Enviando manifesto..."}
+                    {phase === "processing" && statusMessage}
+                    {phase === "error" && "Erro no processamento"}
                   </span>
                   <span className="text-muted-foreground">{progress}%</span>
                 </div>
                 <Progress value={progress} className="h-1.5" />
-                {webhookStatus && (
-                  <div className="text-[11px] text-muted-foreground">{webhookStatus}</div>
-                )}
+                {errorMessage && <div className="text-[11px] text-destructive">{errorMessage}</div>}
               </div>
             )}
           </CardContent>
@@ -242,7 +253,7 @@ function Conferencia() {
             {[
               { t: "Upload do manifesto (BL)", d: "PDF, imagem ou planilha aceita direto no SLAM" },
               { t: "Disparo do webhook Make.com", d: "hook.us2.make.com/… encaminha o arquivo" },
-              { t: "Extração no Google Gemini", d: "IA reconhece itens, quantidades, peso e NCM" },
+              { t: "Extração no Google Gemini", d: "IA reconhece itens, quantidades, peso e contêiner" },
               { t: "Consulta ao Google Sheets", d: "Base de referência interna é lida em tempo real" },
               { t: "Diagnóstico", d: "Conformes, divergentes, faltantes e incorretos" },
             ].map((s, i) => (
@@ -262,13 +273,13 @@ function Conferencia() {
       </div>
 
       {/* Results */}
-      {rows && (
+      {result && (
         <>
           <div className="grid gap-4 md:grid-cols-4">
-            <StatusKpi label="Conformes" value={summary.ok} tone="ok" icon={<CheckCircle2 className="h-4 w-4" />} onClick={() => setFilter("ok")} active={filter === "ok"} />
-            <StatusKpi label="Divergentes" value={summary.divergente} tone="warning" icon={<AlertTriangle className="h-4 w-4" />} onClick={() => setFilter("divergente")} active={filter === "divergente"} />
-            <StatusKpi label="Faltantes" value={summary.faltante} tone="destructive" icon={<PackageX className="h-4 w-4" />} onClick={() => setFilter("faltante")} active={filter === "faltante"} />
-            <StatusKpi label="Incorretos" value={summary.incorreto} tone="turquoise" icon={<XCircle className="h-4 w-4" />} onClick={() => setFilter("incorreto")} active={filter === "incorreto"} />
+            <StatusKpi label="Corretos" value={summary.corretos} tone="ok" icon={<CheckCircle2 className="h-4 w-4" />} onClick={() => setFilter("corretos")} active={filter === "corretos"} />
+            <StatusKpi label="Divergentes" value={summary.divergentes} tone="warning" icon={<AlertTriangle className="h-4 w-4" />} onClick={() => setFilter("divergentes")} active={filter === "divergentes"} />
+            <StatusKpi label="Incorretos" value={summary.incorretos} tone="turquoise" icon={<XCircle className="h-4 w-4" />} onClick={() => setFilter("incorretos")} active={filter === "incorretos"} />
+            <StatusKpi label="Faltantes" value={summary.faltantes} tone="destructive" icon={<PackageX className="h-4 w-4" />} onClick={() => setFilter("faltantes")} active={filter === "faltantes"} />
           </div>
 
           <Card className="shadow-elev">
@@ -276,14 +287,14 @@ function Conferencia() {
               <div>
                 <CardTitle className="text-base">Resultado da conferência</CardTitle>
                 <p className="text-xs text-muted-foreground">
-                  {summary.total} contêineres analisados · filtro atual:{" "}
+                  {summary.total} itens analisados · filtro atual:{" "}
                   <span className="font-medium text-foreground">
-                    {filter === "all" ? "Todos" : label(filter)}
+                    {filter === "all" ? "Todos" : getStatusLabel(filter)}
                   </span>
                 </p>
               </div>
               <div className="flex gap-1.5">
-                {(["all", "ok", "divergente", "faltante", "incorreto"] as const).map((k) => (
+                {(["all", "corretos", "divergentes", "incorretos", "faltantes"] as const).map((k) => (
                   <button
                     key={k}
                     onClick={() => setFilter(k)}
@@ -294,7 +305,7 @@ function Conferencia() {
                         : "bg-muted text-muted-foreground hover:bg-secondary",
                     )}
                   >
-                    {k === "all" ? "Todos" : label(k)}
+                    {k === "all" ? "Todos" : getStatusLabel(k)}
                   </button>
                 ))}
               </div>
@@ -304,32 +315,32 @@ function Conferencia() {
                 <thead className="bg-muted/60 text-xs uppercase tracking-wider text-muted-foreground">
                   <tr>
                     <th className="px-6 py-3 text-left">Status</th>
-                    <th className="px-6 py-3 text-left">Contêiner</th>
+                    <th className="px-6 py-3 text-left">Item Nr</th>
                     <th className="px-6 py-3 text-left">BL</th>
                     <th className="px-6 py-3 text-left">Descrição</th>
-                    <th className="px-6 py-3 text-left">Observações da IA</th>
+                    <th className="px-6 py-3 text-left">Quantidade</th>
+                    <th className="px-6 py-3 text-left">Unidade</th>
+                    <th className="px-6 py-3 text-left">Peso Bruto (kg)</th>
+                    <th className="px-6 py-3 text-left">Contêiner</th>
+                    <th className="px-6 py-3 text-left">Motivo</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {filtered.map((r) => (
-                    <tr key={r.container} className="border-t border-border align-top">
-                      <td className="px-6 py-3"><StatusBadge status={r.status} /></td>
-                      <td className="px-6 py-3 font-mono text-xs font-semibold">{r.container}</td>
-                      <td className="px-6 py-3 font-mono text-xs">{r.bl}</td>
-                      <td className="px-6 py-3">{r.descricao}</td>
-                      <td className="px-6 py-3 text-xs text-muted-foreground">
-                        {r.diffs.length ? (
-                          <ul className="space-y-0.5">
-                            {r.diffs.map((d, i) => <li key={i}>• {d}</li>)}
-                          </ul>
-                        ) : (
-                          <span className="text-success">Nenhuma divergência</span>
-                        )}
-                      </td>
+                  {filteredItems.map((item, index) => (
+                    <tr key={`${item.status}-${index}`} className="border-t border-border align-top">
+                      <td className="px-6 py-3"><StatusBadge status={item.status} /></td>
+                      <td className="px-6 py-3 font-mono text-xs font-semibold">{item["Item Nr"]}</td>
+                      <td className="px-6 py-3 font-mono text-xs">{item.BL}</td>
+                      <td className="px-6 py-3">{item.Descrição || "-"}</td>
+                      <td className="px-6 py-3 font-mono text-xs">{item.Quantidade || "-"}</td>
+                      <td className="px-6 py-3 text-xs">{item.Unidade || "-"}</td>
+                      <td className="px-6 py-3 font-mono text-xs">{item["Peso Bruto"] || "-"}</td>
+                      <td className="px-6 py-3 font-mono text-xs">{item.Contêiner || "-"}</td>
+                      <td className="px-6 py-3 text-xs text-muted-foreground">{buildMotivo(item)}</td>
                     </tr>
                   ))}
-                  {!filtered.length && (
-                    <tr><td colSpan={5} className="px-6 py-10 text-center text-sm text-muted-foreground">
+                  {!filteredItems.length && (
+                    <tr><td colSpan={9} className="px-6 py-10 text-center text-sm text-muted-foreground">
                       Nenhum item neste status.
                     </td></tr>
                   )}
@@ -343,25 +354,61 @@ function Conferencia() {
   );
 }
 
-function tick(ms: number) { return new Promise((r) => setTimeout(r, ms)); }
-function label(s: DiagnosticStatus) {
-  return { ok: "Conforme", divergente: "Divergente", faltante: "Faltante", incorreto: "Incorreto" }[s];
+function buildMotivo(item: ResultRow): string {
+  if (item.status === "corretos") return "-";
+
+  if (item.status === "faltantes") {
+    return "Item consta na base de referência, mas não foi encontrado no manifesto";
+  }
+
+  const partes: string[] = [];
+  const motivoBase = item.Motivo?.replace(/^"+|"+$/g, "").trim();
+  if (motivoBase) partes.push(motivoBase);
+
+  if (item.status === "divergentes") {
+    if (item.Quantidade_Ref && item.Quantidade_Ref !== item.Quantidade) {
+      partes.push(`Quantidade declarada: ${item.Quantidade} · base: ${item.Quantidade_Ref}`);
+    }
+    if (item.Peso_Ref && item.Peso_Ref !== item["Peso Bruto"]) {
+      partes.push(`Peso declarado: ${item["Peso Bruto"]} kg · base: ${item.Peso_Ref} kg`);
+    }
+    if (item.Contêiner_Ref && item.Contêiner_Ref !== item.Contêiner) {
+      partes.push(`Contêiner declarado: ${item.Contêiner} · base: ${item.Contêiner_Ref}`);
+    }
+  }
+
+  if (item.status === "incorretos" && !motivoBase) {
+    partes.push("Item do manifesto sem correspondência de BL + Nº na base de referência");
+  }
+
+  return partes.length ? partes.join(" — ") : "-";
 }
 
-function StatusBadge({ status }: { status: DiagnosticStatus }) {
-  const map: Record<DiagnosticStatus, string> = {
-    ok: "border-success/30 bg-success/10 text-success",
-    divergente: "border-warning/40 bg-warning/15 text-warning",
-    faltante: "border-destructive/30 bg-destructive/10 text-destructive",
-    incorreto: "border-turquoise/40 bg-turquoise/15 text-navy",
+function getStatusLabel(status: StatusFilter): string {
+  return {
+    all: "Todos",
+    corretos: "Corretos",
+    divergentes: "Divergentes",
+    incorretos: "Incorretos",
+    faltantes: "Faltantes",
+  }[status];
+}
+
+function StatusBadge({ status }: { status: StatusFilter }) {
+  const map: Record<StatusFilter, string> = {
+    all: "border-border bg-muted text-muted-foreground",
+    corretos: "border-success/30 bg-success/10 text-success",
+    divergentes: "border-warning/40 bg-warning/15 text-warning",
+    incorretos: "border-turquoise/40 bg-turquoise/15 text-navy",
+    faltantes: "border-destructive/30 bg-destructive/10 text-destructive",
   };
   return (
     <Badge variant="outline" className={cn("gap-1", map[status])}>
-      {status === "ok" && <CheckCircle2 className="h-3 w-3" />}
-      {status === "divergente" && <AlertTriangle className="h-3 w-3" />}
-      {status === "faltante" && <PackageX className="h-3 w-3" />}
-      {status === "incorreto" && <XCircle className="h-3 w-3" />}
-      {label(status)}
+      {status === "corretos" && <CheckCircle2 className="h-3 w-3" />}
+      {status === "divergentes" && <AlertTriangle className="h-3 w-3" />}
+      {status === "faltantes" && <PackageX className="h-3 w-3" />}
+      {status === "incorretos" && <XCircle className="h-3 w-3" />}
+      {getStatusLabel(status)}
     </Badge>
   );
 }

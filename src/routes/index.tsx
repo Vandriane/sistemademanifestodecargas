@@ -67,7 +67,7 @@ function Landing() {
           </div>
         </div>
         <Link
-          to="#login"
+          to="/"
           hash="login"
           className="rounded-md bg-turquoise px-4 py-2 text-sm font-semibold text-navy-deep transition hover:bg-turquoise-soft"
         >
@@ -171,7 +171,7 @@ function Landing() {
       <footer className="border-t border-white/10 bg-navy-deep/60">
         <div className="mx-auto flex max-w-7xl flex-col items-center justify-between gap-2 px-6 py-6 text-xs text-white/60 md:flex-row">
           <span>© {new Date().getFullYear()} SLAM · Wilson Sons Port Ops</span>
-          <span>Projeto desenvolvido para fins educativos na KODIE Academy.</span>
+          <span>Projeto desenvolvido pela equipe Linus Torvalds para fins educativos na KODIE Academy.</span>
         </div>
       </footer>
     </div>

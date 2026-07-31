@@ -31,6 +31,9 @@ dist-ssr
 *.sln
 *.sw?
 
-AGENTS.md
-.AGENTS.node_modules
-AGENTS
+.env
+env
+env/
+venv
+.venv
+venv/

@@ -1,27 +1,6 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import {
-  Area,
-  AreaChart,
-  CartesianGrid,
-  ResponsiveContainer,
-  Tooltip,
-  XAxis,
-  YAxis,
-  Bar,
-  BarChart,
-  Cell,
-  PieChart,
-  Pie,
-} from "recharts";
-import {
-  ArrowUpRight,
-  ClipboardCheck,
-  Timer,
-  AlertTriangle,
-  PackageX,
-  TrendingDown,
-  FileSearch,
-} from "lucide-react";
+import { Area, AreaChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis, Bar, BarChart, Cell, PieChart, Pie, } from "recharts";
+import { ArrowUpRight, ClipboardCheck, Timer, AlertTriangle, PackageX, TrendingDown, FileSearch } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";

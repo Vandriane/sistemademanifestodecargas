@@ -56,9 +56,18 @@ export async function pollSheetForResult(
   const timeout = 60_000; // 60 segundos
   const interval = 3_000; // 3 segundos
 
+  let baselineHash = "";
+  try {
+    const baseline = await fetchAllSheets(sheetId);
+    baselineHash = JSON.stringify(baseline); // Converte o resultado velho em texto para comparação
+  } catch (error) {
+    console.warn("Não foi possível buscar o estado inicial da planilha:", error);
+  }
+
   while (Date.now() - startTime < timeout) {
     try {
       const result = await fetchAllSheets(sheetId);
+      const currentHash = JSON.stringify(result);
 
       const hasResults =
         result.corretos.length > 0 ||
@@ -66,7 +75,7 @@ export async function pollSheetForResult(
         result.incorretos.length > 0 ||
         result.faltantes.length > 0;
 
-      if (hasResults) {
+      if (hasResults && currentHash !== baselineHash) {
         return result;
       }
 

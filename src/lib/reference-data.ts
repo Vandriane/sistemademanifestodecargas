@@ -1,6 +1,3 @@
-// Internal reference base — mirrors the "Itens_Referencia" tab of your
-// Google Sheets (source of truth). REFERENCE_BASE below is the offline
-// fallback used only if the live sync fails.
 export type ReferenceItem = {
   bl: string;
   itemNr: number;
@@ -55,8 +52,6 @@ export type ExtractedItem = {
   container: string;
 };
 
-// Offline demo fallback for the "Conferência" screen (mirrors BL-2026-001
-// with the one real divergence in item 3).
 export const SAMPLE_EXTRACTED: ExtractedItem[] = [
   { bl: "BL-2026-001", itemNr: 1, descricao: "Amortecedores dianteiros (kit)", quantidade: 200, unidade: "caixas", pesoKg: 3200, container: "WSCU1004521" },
   { bl: "BL-2026-001", itemNr: 2, descricao: "Correias de transmissão automotiva", quantidade: 350, unidade: "unidades", pesoKg: 1050, container: "WSCU1004521" },
@@ -79,7 +74,6 @@ export type DiagnosticRow = {
   encontrado?: ExtractedItem;
 };
 
-// ---- Contract with the Make.com manifest webhook (POST only) --------
 export type MakeDiagnosticItem = {
   item_nr: number;
   descricao: string;
@@ -140,10 +134,10 @@ export function runDiagnostic(
   return rows;
 }
 
-export const MAKE_WEBHOOK_URL = "https://hook.us2.make.com/lhsa1on7fjosfxs6mas9thltqbrd0cjm";
+export const MAKE_WEBHOOK_URL = import.meta.env.VITE_MAKE_WEBHOOK_URL;
 
-const REFERENCE_SHEET_ID = "1MNrzFpldTGaYYn31XnbH_-2YGddmqIgenwZDD6oj3dE";
-const REFERENCE_SHEET_TAB = "Itens_Referencia";
+const REFERENCE_SHEET_ID = import.meta.env.VITE_SHEET_ID;
+const REFERENCE_SHEET_TAB = import.meta.env.VITE_SHEET_TAB;
 
 function splitCsvLine(line: string): string[] {
   const out: string[] = [];

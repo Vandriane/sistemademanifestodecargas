@@ -1,8 +1,16 @@
 import { createFileRoute } from "@tanstack/react-router";
+import { useEffect, useMemo, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Download, FileText } from "lucide-react";
+import {
+  buildBlHistory,
+  fetchDashboardData,
+  getLastConferenceResult,
+  type BlHistoryEntry,
+  type ConferenceResult,
+} from "@/lib/make-integration";
 
 export const Route = createFileRoute("/app/relatorios")({
   component: Relatorios,
@@ -22,6 +30,16 @@ const reports = [
 ];
 
 function Relatorios() {
+  const [result, setResult] = useState<ConferenceResult | null>(() => getLastConferenceResult());
+
+  useEffect(() => {
+    fetchDashboardData()
+      .then(setResult)
+      .catch((error) => console.error("Falha ao carregar histórico de conferências:", error));
+  }, []);
+
+  const history = useMemo(() => (result ? buildBlHistory(result) : []), [result]);
+
   return (
     <div className="space-y-6">
       <div>
@@ -89,6 +107,46 @@ function Relatorios() {
           </table>
         </CardContent>
       </Card>
+
+      <HistoryCard history={history} />
     </div>
+  );
+}
+
+function HistoryCard({ history }: { history: BlHistoryEntry[] }) {
+  return (
+    <Card className="shadow-elev">
+      <CardHeader>
+        <CardTitle className="text-base">Histórico recente</CardTitle>
+        <p className="text-xs text-muted-foreground">Últimas conferências registradas no Sheets, por manifesto</p>
+      </CardHeader>
+      <CardContent className="overflow-x-auto p-0">
+        <table className="w-full text-sm">
+          <thead className="bg-muted/60 text-xs uppercase tracking-wider text-muted-foreground">
+            <tr>
+              {["BL", "Última atualização", "Corretos", "Divergentes", "Incorretos", "Faltantes", "Total"].map((h) => (
+                <th key={h} className="px-6 py-3 text-left">{h}</th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {history.slice(0, 10).map((entry) => (
+              <tr key={entry.bl} className="border-t border-border">
+                <td className="px-6 py-3 font-mono text-xs font-semibold">{entry.bl}</td>
+                <td className="px-6 py-3 text-xs text-muted-foreground">{entry.timestamp || "-"}</td>
+                <td className="px-6 py-3 text-xs">{entry.corretos}</td>
+                <td className="px-6 py-3 text-xs">{entry.divergentes}</td>
+                <td className="px-6 py-3 text-xs">{entry.incorretos}</td>
+                <td className="px-6 py-3 text-xs">{entry.faltantes}</td>
+                <td className="px-6 py-3 text-xs font-semibold">{entry.total}</td>
+              </tr>
+            ))}
+            {!history.length && (
+              <tr><td colSpan={7} className="px-6 py-10 text-center text-muted-foreground">Nenhuma conferência registrada ainda.</td></tr>
+            )}
+          </tbody>
+        </table>
+      </CardContent>
+    </Card>
   );
 }

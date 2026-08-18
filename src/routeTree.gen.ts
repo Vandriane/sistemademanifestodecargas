@@ -15,6 +15,7 @@ import { Route as AppIndexRouteImport } from './routes/app.index'
 import { Route as AppBaseRouteImport } from './routes/app.base'
 import { Route as AppConferenciaRouteImport } from './routes/app.conferencia'
 import { Route as AppDashboardRouteImport } from './routes/app.dashboard'
+import { Route as AppLinusTorvaldsRouteImport } from './routes/app.linus-torvalds'
 import { Route as AppRelatoriosRouteImport } from './routes/app.relatorios'
 
 const IndexRoute = IndexRouteImport.update({
@@ -47,6 +48,11 @@ const AppDashboardRoute = AppDashboardRouteImport.update({
   path: '/dashboard',
   getParentRoute: () => AppRoute,
 } as any)
+const AppLinusTorvaldsRoute = AppLinusTorvaldsRouteImport.update({
+  id: '/linus-torvalds',
+  path: '/linus-torvalds',
+  getParentRoute: () => AppRoute,
+} as any)
 const AppRelatoriosRoute = AppRelatoriosRouteImport.update({
   id: '/relatorios',
   path: '/relatorios',
@@ -59,6 +65,7 @@ export interface FileRoutesByFullPath {
   '/app/base': typeof AppBaseRoute
   '/app/conferencia': typeof AppConferenciaRoute
   '/app/dashboard': typeof AppDashboardRoute
+  '/app/linus-torvalds': typeof AppLinusTorvaldsRoute
   '/app/relatorios': typeof AppRelatoriosRoute
   '/app/': typeof AppIndexRoute
 }
@@ -67,6 +74,7 @@ export interface FileRoutesByTo {
   '/app/base': typeof AppBaseRoute
   '/app/conferencia': typeof AppConferenciaRoute
   '/app/dashboard': typeof AppDashboardRoute
+  '/app/linus-torvalds': typeof AppLinusTorvaldsRoute
   '/app/relatorios': typeof AppRelatoriosRoute
   '/app': typeof AppIndexRoute
 }
@@ -77,6 +85,7 @@ export interface FileRoutesById {
   '/app/base': typeof AppBaseRoute
   '/app/conferencia': typeof AppConferenciaRoute
   '/app/dashboard': typeof AppDashboardRoute
+  '/app/linus-torvalds': typeof AppLinusTorvaldsRoute
   '/app/relatorios': typeof AppRelatoriosRoute
   '/app/': typeof AppIndexRoute
 }
@@ -88,6 +97,7 @@ export interface FileRouteTypes {
     | '/app/base'
     | '/app/conferencia'
     | '/app/dashboard'
+    | '/app/linus-torvalds'
     | '/app/relatorios'
     | '/app/'
   fileRoutesByTo: FileRoutesByTo
@@ -96,6 +106,7 @@ export interface FileRouteTypes {
     | '/app/base'
     | '/app/conferencia'
     | '/app/dashboard'
+    | '/app/linus-torvalds'
     | '/app/relatorios'
     | '/app'
   id:
@@ -105,6 +116,7 @@ export interface FileRouteTypes {
     | '/app/base'
     | '/app/conferencia'
     | '/app/dashboard'
+    | '/app/linus-torvalds'
     | '/app/relatorios'
     | '/app/'
   fileRoutesById: FileRoutesById
@@ -158,6 +170,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppDashboardRouteImport
       parentRoute: typeof AppRoute
     }
+    '/app/linus-torvalds': {
+      id: '/app/linus-torvalds'
+      path: '/linus-torvalds'
+      fullPath: '/app/linus-torvalds'
+      preLoaderRoute: typeof AppLinusTorvaldsRouteImport
+      parentRoute: typeof AppRoute
+    }
     '/app/relatorios': {
       id: '/app/relatorios'
       path: '/relatorios'
@@ -172,6 +191,7 @@ interface AppRouteChildren {
   AppBaseRoute: typeof AppBaseRoute
   AppConferenciaRoute: typeof AppConferenciaRoute
   AppDashboardRoute: typeof AppDashboardRoute
+  AppLinusTorvaldsRoute: typeof AppLinusTorvaldsRoute
   AppRelatoriosRoute: typeof AppRelatoriosRoute
   AppIndexRoute: typeof AppIndexRoute
 }
@@ -180,6 +200,7 @@ const AppRouteChildren: AppRouteChildren = {
   AppBaseRoute: AppBaseRoute,
   AppConferenciaRoute: AppConferenciaRoute,
   AppDashboardRoute: AppDashboardRoute,
+  AppLinusTorvaldsRoute: AppLinusTorvaldsRoute,
   AppRelatoriosRoute: AppRelatoriosRoute,
   AppIndexRoute: AppIndexRoute,
 }

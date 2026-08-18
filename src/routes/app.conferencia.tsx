@@ -10,6 +10,7 @@ import { cn } from "@/lib/utils";
 import {
   uploadManifestToMake,
   pollSheetForResult,
+  saveLastConferenceResult,
   type ConferenceResult,
   type SheetItem,
 } from "@/lib/make-integration";
@@ -115,6 +116,7 @@ const startAnalysis = async () => {
       });
 
       setResult(conferenceResult);
+      saveLastConferenceResult(conferenceResult);
       setProgress(100);
       setPhase("done");
       setStatusMessage("Conferência concluída com sucesso!");

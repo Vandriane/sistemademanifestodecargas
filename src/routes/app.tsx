@@ -10,6 +10,7 @@ import {
   Bell,
   Menu,
   X,
+  Users,
 } from "lucide-react";
 import { getSession, signOut } from "@/lib/auth";
 import { Button } from "@/components/ui/button";
@@ -20,7 +21,10 @@ export const Route = createFileRoute("/app")({
   head: () => ({
     meta: [
       { title: "SLAM · Console de Conferência" },
-      { name: "description", content: "Console operacional para conferência de manifestos de carga." },
+      { 
+        name: "description", 
+        content: "Console operacional para conferência de manifestos de carga." 
+      }
     ],
   }),
 });
@@ -51,7 +55,6 @@ function AppShell() {
 
   return (
     <div className="flex min-h-screen bg-muted/40">
-      {/* Sidebar */}
       <aside
         className={cn(
           "fixed inset-y-0 left-0 z-40 w-64 shrink-0 bg-sidebar text-sidebar-foreground transition-transform lg:static lg:translate-x-0",
@@ -67,6 +70,7 @@ function AppShell() {
             <div className="text-[10px] uppercase tracking-widest text-white/50">Port Ops</div>
           </div>
         </div>
+
         <nav className="space-y-1 p-3">
           {NAV.map((n) => {
             const active = pathname.startsWith(n.to);
@@ -88,7 +92,8 @@ function AppShell() {
             );
           })}
         </nav>
-        <div className="absolute inset-x-3 bottom-3 rounded-xl bg-sidebar-accent/60 p-3 text-xs text-white/70">
+
+        <div className="absolute inset-x-3 bottom-8 rounded-xl bg-sidebar-accent/60 p-3 text-xs text-white/70">
           <div className="font-semibold text-white">Integração ativa</div>
           <div className="mt-0.5">Make.com · Gemini · Google Sheets</div>
           <div className="mt-2 flex items-center gap-1.5">
@@ -96,13 +101,28 @@ function AppShell() {
             Webhook conectado
           </div>
         </div>
+
+        <div className="absolute inset-x-3 bottom-30 p-3 mt-3">
+          <Link
+            to="/app/linus-torvalds"
+            onClick={() => setOpen(false)}
+            className={cn(
+              "mt-3 flex items-center gap-2 rounded-lg border border-turquoise/30 bg-turquoise/10 px-2.5 py-2 text-xs font-medium transition hover:bg-turquoise/20",
+              pathname.startsWith("/app/linus-torvalds")
+                ? "ring-1 ring-turquoise/50"
+                : "",
+            )}
+          >
+            <Users className="h-3.5 w-3.5 text-turquoise" />
+            <span className="text-white">Linus Torvalds</span>
+          </Link>
+        </div>
       </aside>
 
       {open && (
         <div className="fixed inset-0 z-30 bg-black/40 lg:hidden" onClick={() => setOpen(false)} />
       )}
 
-      {/* Main */}
       <div className="flex min-w-0 flex-1 flex-col">
         <header className="sticky top-0 z-20 flex h-16 items-center gap-3 border-b border-border bg-background/80 px-4 backdrop-blur lg:px-8">
           <Button
@@ -139,7 +159,7 @@ function AppShell() {
           </div>
         </header>
 
-        <main className="flex-1 px-4 py-6 lg:px-8 lg:py-8">
+        <main className="flex-1 p-4">
           <Outlet />
         </main>
 

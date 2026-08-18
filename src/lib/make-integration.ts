@@ -21,6 +21,34 @@ export interface ConferenceResult {
   faltantes: SheetItem[];
 }
 
+export interface BlHistoryEntry {
+  bl: string;
+  timestamp: string;
+  corretos: number;
+  divergentes: number;
+  incorretos: number;
+  faltantes: number;
+  total: number;
+}
+
+const LAST_CONFERENCE_RESULT_KEY = "slam:last-conference-result";
+
+export function saveLastConferenceResult(result: ConferenceResult): void {
+  if (typeof window === "undefined") return;
+  window.localStorage.setItem(LAST_CONFERENCE_RESULT_KEY, JSON.stringify(result));
+}
+
+export function getLastConferenceResult(): ConferenceResult | null {
+  if (typeof window === "undefined") return null;
+  try {
+    const storedResult = window.localStorage.getItem(LAST_CONFERENCE_RESULT_KEY);
+    return storedResult ? (JSON.parse(storedResult) as ConferenceResult) : null;
+  } catch {
+    window.localStorage.removeItem(LAST_CONFERENCE_RESULT_KEY);
+    return null;
+  }
+}
+
 function normalizeBl(bl: string): string {
   return bl.trim().toUpperCase();
 }
@@ -169,5 +197,46 @@ function parseCSVLine(line: string): string[] {
     }
   }
   result.push(current.trim());
+  return result;
+}
+
+export function buildBlHistory(result: ConferenceResult): BlHistoryEntry[] {
+  const map = new Map<string, BlHistoryEntry>();
+
+  const bump = (item: SheetItem, key: "corretos" | "divergentes" | "incorretos" | "faltantes") => {
+    const bl = normalizeBl(item.BL);
+    if (!bl) return;
+    const existing = map.get(bl) ?? {
+      bl,
+      timestamp: item.Timestamp ?? "",
+      corretos: 0,
+      divergentes: 0,
+      incorretos: 0,
+      faltantes: 0,
+      total: 0,
+    };
+    existing[key] += 1;
+    existing.total += 1;
+    if (item.Timestamp && item.Timestamp > existing.timestamp) {
+      existing.timestamp = item.Timestamp;
+    }
+    map.set(bl, existing);
+  };
+
+  result.corretos.forEach((item) => bump(item, "corretos"));
+  result.divergentes.forEach((item) => bump(item, "divergentes"));
+  result.incorretos.forEach((item) => bump(item, "incorretos"));
+  result.faltantes.forEach((item) => bump(item, "faltantes"));
+
+  return Array.from(map.values()).sort((a, b) => (b.timestamp || "").localeCompare(a.timestamp || ""));
+}
+
+export async function fetchDashboardData(): Promise<ConferenceResult> {
+  const sheetId = import.meta.env.VITE_SHEET_ID;
+  if (!sheetId) {
+    throw new Error("VITE_SHEET_ID não configurado (veja o .env).");
+  }
+  const result = await fetchAllSheets(sheetId);
+  saveLastConferenceResult(result);
   return result;
 }

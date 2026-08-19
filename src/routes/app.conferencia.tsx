@@ -11,6 +11,8 @@ import {
   uploadManifestToMake,
   pollSheetForResult,
   saveLastConferenceResult,
+  fetchAllSheets,
+  collectItemKeys,
   type ConferenceResult,
   type SheetItem,
 } from "@/lib/make-integration";
@@ -93,41 +95,58 @@ function Conferencia() {
   };
 
 const startAnalysis = async () => {
-    if (!file) {
-      toast.error("Anexe um manifesto.");
-      return;
+  if (!file) {
+    toast.error("Anexe um manifesto.");
+    return;
+  }
+
+  setPhase("uploading");
+  setProgress(10);
+  setStatusMessage("Capturando estado inicial da planilha...");
+  setErrorMessage("");
+
+  try {
+    const sheetId = import.meta.env.VITE_SHEET_ID;
+    let baselineKeys = new Set<string>();
+    if (sheetId) {
+      try {
+        const baseline = await fetchAllSheets(sheetId);
+        baselineKeys = collectItemKeys(baseline);
+      } catch (e) {
+        console.warn("Baseline indisponível:", e);
+      }
     }
 
-    setPhase("uploading");
-    setProgress(15);
+    setProgress(20);
     setStatusMessage("Enviando manifesto para a IA...");
-    setErrorMessage("");
 
-    try {
-      await uploadManifestToMake(file);
+    await uploadManifestToMake(file);
 
-      setPhase("processing");
-      setProgress(30);
-      setStatusMessage("Processando com IA e comparando com a base de referência...");
+    setPhase("processing");
+    setProgress(40);
+    setStatusMessage("Processando com IA e comparando com a base de referência...");
 
-      const conferenceResult = await pollSheetForResult((message) => {
+    const conferenceResult = await pollSheetForResult(
+      baselineKeys,
+      (message) => {
         setStatusMessage(message);
-        setProgress((p) => Math.min(p + 8, 90));
-      });
+        setProgress((p) => Math.min(p + 8, 92));
+      },
+    );
 
-      setResult(conferenceResult);
-      saveLastConferenceResult(conferenceResult);
-      setProgress(100);
-      setPhase("done");
-      setStatusMessage("Conferência concluída com sucesso!");
-      toast.success("Conferência concluída!");
-    } catch (error) {
-      console.error("Error during analysis:", error);
-      setPhase("error");
-      setErrorMessage(error instanceof Error ? error.message : "Erro ao processar manifesto.");
-      toast.error("Erro ao processar manifesto.");
-    }
-  };
+    setResult(conferenceResult);
+    saveLastConferenceResult(conferenceResult);
+    setProgress(100);
+    setPhase("done");
+    setStatusMessage("Conferência concluída com sucesso!");
+    toast.success("Conferência concluída!");
+  } catch (error) {
+    console.error("Error during analysis:", error);
+    setPhase("error");
+    setErrorMessage(error instanceof Error ? error.message : "Erro ao processar manifesto.");
+    toast.error("Erro ao processar manifesto.");
+  }
+};
 
   const reset = () => {
     setFile(null);
@@ -157,7 +176,6 @@ const startAnalysis = async () => {
       </div>
 
       <div className="grid gap-6 xl:grid-cols-[1.05fr_1fr]">
-        {/* Upload */}
         <Card className="shadow-elev">
           <CardHeader>
             <CardTitle className="text-base">Anexar manifesto (BL)</CardTitle>
@@ -243,7 +261,6 @@ const startAnalysis = async () => {
           </CardContent>
         </Card>
 
-        {/* Pipeline */}
         <Card className="shadow-elev">
           <CardHeader>
             <CardTitle className="text-base">Painel da automação</CardTitle>
@@ -274,16 +291,8 @@ const startAnalysis = async () => {
         </Card>
       </div>
 
-      {/* Results */}
       {result && (
         <>
-          <div className="grid gap-4 md:grid-cols-4">
-            <StatusKpi label="Corretos" value={summary.corretos} tone="ok" icon={<CheckCircle2 className="h-4 w-4" />} onClick={() => setFilter("corretos")} active={filter === "corretos"} />
-            <StatusKpi label="Divergentes" value={summary.divergentes} tone="warning" icon={<AlertTriangle className="h-4 w-4" />} onClick={() => setFilter("divergentes")} active={filter === "divergentes"} />
-            <StatusKpi label="Incorretos" value={summary.incorretos} tone="turquoise" icon={<XCircle className="h-4 w-4" />} onClick={() => setFilter("incorretos")} active={filter === "incorretos"} />
-            <StatusKpi label="Faltantes" value={summary.faltantes} tone="destructive" icon={<PackageX className="h-4 w-4" />} onClick={() => setFilter("faltantes")} active={filter === "faltantes"} />
-          </div>
-
           <Card className="shadow-elev">
             <CardHeader className="flex flex-row items-center justify-between space-y-0">
               <div>

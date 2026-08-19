@@ -72,8 +72,41 @@ export async function uploadManifestToMake(file: File): Promise<void> {
   }
 }
 
+function itemKey(item: SheetItem): string {
+  return JSON.stringify({
+    bl: (item.BL || "").trim().toUpperCase(),
+    itemNr: (item["Item Nr"] || "").trim(),
+    status: (item.Status || "").trim().toLowerCase(),
+    qtd: (item.Quantidade || "").trim(),
+    peso: (item["Peso Bruto"] || "").trim(),
+    container: (item.Contêiner || "").trim(),
+    motivo: (item.Motivo || "").trim(),
+    timestamp: (item.Timestamp || "").trim(),
+  });
+}
+
+export function collectItemKeys(result: ConferenceResult): Set<string> {
+  const keys = new Set<string>();
+  const add = (items: SheetItem[]) => items.forEach((i) => keys.add(itemKey(i)));
+  add(result.corretos);
+  add(result.divergentes);
+  add(result.incorretos);
+  add(result.faltantes);
+  return keys;
+}
+
+function filterNewItems( current: ConferenceResult, baselineKeys: Set<string>,): ConferenceResult {
+  const isNew = (item: SheetItem) => !baselineKeys.has(itemKey(item));
+  return {
+    corretos: current.corretos.filter(isNew),
+    divergentes: current.divergentes.filter(isNew),
+    incorretos: current.incorretos.filter(isNew),
+    faltantes: current.faltantes.filter(isNew),
+  };
+}
+
 export async function pollSheetForResult(
-  onProgress?: (message: string) => void,
+onProgress?: (message: string) => void,
 ): Promise<ConferenceResult> {
   const sheetId = import.meta.env.VITE_SHEET_ID;
   if (!sheetId) {
@@ -84,10 +117,14 @@ export async function pollSheetForResult(
   const timeout = 60_000; // 60 segundos
   const interval = 3_000; // 3 segundos
 
-  let baselineHash = "";
+  let baselineKeys = new Set<string>();
   try {
+    onProgress?.("Capturando estado inicial da planilha...");
     const baseline = await fetchAllSheets(sheetId);
-    baselineHash = JSON.stringify(baseline); // Converte o resultado velho em texto para comparação
+    baselineKeys = collectItemKeys(baseline);
+    onProgress?.(
+      `Baseline capturado (${baselineKeys.size} itens pré-existentes). Aguardando Make...`,
+    );
   } catch (error) {
     console.warn("Não foi possível buscar o estado inicial da planilha:", error);
   }
@@ -95,16 +132,20 @@ export async function pollSheetForResult(
   while (Date.now() - startTime < timeout) {
     try {
       const result = await fetchAllSheets(sheetId);
-      const currentHash = JSON.stringify(result);
 
-      const hasResults =
-        result.corretos.length > 0 ||
-        result.divergentes.length > 0 ||
-        result.incorretos.length > 0 ||
-        result.faltantes.length > 0;
+      // ✅ Filtra: só ficam os itens que NÃO estavam no baseline
+      const newItems = filterNewItems(result, baselineKeys);
+      const hasNewResults =
+        newItems.corretos.length > 0 ||
+        newItems.divergentes.length > 0 ||
+        newItems.incorretos.length > 0 ||
+        newItems.faltantes.length > 0;
 
-      if (hasResults && currentHash !== baselineHash) {
-        return result;
+      if (hasNewResults) {
+        onProgress?.(
+          `Análise concluída · ${newItems.corretos.length + newItems.divergentes.length + newItems.incorretos.length + newItems.faltantes.length} itens novos detectados.`,
+        );
+        return newItems; // ✅ Retorna apenas os itens desta análise
       }
 
       onProgress?.("Processando com IA e comparando com a base de referência...");
@@ -120,7 +161,7 @@ export async function pollSheetForResult(
   );
 }
 
-async function fetchAllSheets(sheetId: string): Promise<ConferenceResult> {
+export async function fetchAllSheets(sheetId: string): Promise<ConferenceResult> {
   const result: ConferenceResult = {
     corretos: [],
     divergentes: [],

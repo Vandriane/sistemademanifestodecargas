@@ -115,10 +115,11 @@ export async function pollSheetForResult(
   }
 
   const startTime = Date.now();
-  const timeout = 60_000; // 60 segundos
-  const interval = 3_000; // 3 segundos
+  const totalTimeout = 3 * 60_000;
+  const pollInterval = 3_000;
+  const stablePollsRequired = 3;
+  const stabilizationTimeout = 90_000;
 
-  // Usa o baseline recebido; se vier vazio, captura internamente (fallback)
   let baseline = baselineKeys ?? new Set<string>();
   if (baseline.size === 0) {
     try {
@@ -137,35 +138,80 @@ export async function pollSheetForResult(
     );
   }
 
-  while (Date.now() - startTime < timeout) {
+  let lastNewItems: ConferenceResult | null = null;
+  let lastNewCount = 0;
+  let lastNewKeys: Set<string> = new Set();
+  let stablePolls = 0;
+  let firstNewItemTime: number | null = null;
+
+  while (Date.now() - startTime < totalTimeout) {
     try {
       const result = await fetchAllSheets(sheetId);
-
-      // Filtra: só ficam os itens que NÃO estavam no baseline
       const newItems = filterNewItems(result, baseline);
+      const totalNew =
+        newItems.corretos.length +
+        newItems.divergentes.length +
+        newItems.incorretos.length +
+        newItems.faltantes.length;
 
-      const hasNewResults =
-        newItems.corretos.length > 0 ||
-        newItems.divergentes.length > 0 ||
-        newItems.incorretos.length > 0 ||
-        newItems.faltantes.length > 0;
+      if (totalNew === 0) {
+        onProgress?.("Processando com IA e comparando com a base de referência...");
+        stablePolls = 0;
+      } else {
+        if (firstNewItemTime === null) {
+          firstNewItemTime = Date.now();
+          onProgress?.(
+            `${totalNew} ${totalNew === 1 ? "item detectado" : "itens detectados"}. Aguardando o Make concluir a gravação...`,
+          );
+          stablePolls = 0;
+        } else {
+          const currentKeys = collectItemKeys(newItems);
+          const sameCount = totalNew === lastNewCount;
+          const sameContent = currentKeys.size === lastNewKeys.size &&
+            [...currentKeys].every((k) => lastNewKeys.has(k));
 
-      if (hasNewResults) {
-        const totalNew =
-          newItems.corretos.length +
-          newItems.divergentes.length +
-          newItems.incorretos.length +
-          newItems.faltantes.length;
-        onProgress?.(`Análise concluída · ${totalNew} itens novos detectados.`);
-        return newItems; // ✅ Retorna apenas itens desta análise
+          if (sameCount && sameContent) {
+            stablePolls++;
+            onProgress?.(
+              `${totalNew} itens detectados. Verificando estabilidade (${stablePolls}/${stablePollsRequired})...`,
+            );
+          } else {
+            stablePolls = 0;
+            onProgress?.(
+              `${totalNew} itens detectados. Aguardando mais dados do Make...`,
+            );
+          }
+
+          lastNewKeys = currentKeys;
+        }
+
+        lastNewItems = newItems;
+        lastNewCount = totalNew;
+
+        if (stablePolls >= stablePollsRequired) {
+          onProgress?.(`Análise concluída · ${totalNew} itens novos detectados.`);
+          return newItems;
+        }
+
+        if (firstNewItemTime && Date.now() - firstNewItemTime > stabilizationTimeout) {
+          onProgress?.(
+            `Análise concluída (tempo limite de estabilização) · ${totalNew} itens detectados.`,
+          );
+          return newItems;
+        }
       }
-
-      onProgress?.("Processando com IA e comparando com a base de referência...");
     } catch (error) {
       console.error("Erro ao buscar resultados:", error);
     }
 
-    await new Promise((resolve) => setTimeout(resolve, interval));
+    await new Promise((resolve) => setTimeout(resolve, pollInterval));
+  }
+
+  if (lastNewItems && lastNewCount > 0) {
+    onProgress?.(
+      `Análise concluída (tempo limite total atingido) · ${lastNewCount} itens detectados.`,
+    );
+    return lastNewItems;
   }
 
   throw new Error(

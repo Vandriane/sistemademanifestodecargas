@@ -106,7 +106,8 @@ function filterNewItems( current: ConferenceResult, baselineKeys: Set<string>,):
 }
 
 export async function pollSheetForResult(
-onProgress?: (message: string) => void,
+  baselineKeys?: Set<string>,
+  onProgress?: (message: string) => void,
 ): Promise<ConferenceResult> {
   const sheetId = import.meta.env.VITE_SHEET_ID;
   if (!sheetId) {
@@ -117,24 +118,32 @@ onProgress?: (message: string) => void,
   const timeout = 60_000; // 60 segundos
   const interval = 3_000; // 3 segundos
 
-  let baselineKeys = new Set<string>();
-  try {
-    onProgress?.("Capturando estado inicial da planilha...");
-    const baseline = await fetchAllSheets(sheetId);
-    baselineKeys = collectItemKeys(baseline);
+  // Usa o baseline recebido; se vier vazio, captura internamente (fallback)
+  let baseline = baselineKeys ?? new Set<string>();
+  if (baseline.size === 0) {
+    try {
+      onProgress?.("Capturando estado inicial da planilha...");
+      const baselineResult = await fetchAllSheets(sheetId);
+      baseline = collectItemKeys(baselineResult);
+      onProgress?.(
+        `Baseline capturado (${baseline.size} itens pré-existentes). Aguardando Make...`,
+      );
+    } catch (error) {
+      console.warn("Não foi possível buscar o estado inicial da planilha:", error);
+    }
+  } else {
     onProgress?.(
-      `Baseline capturado (${baselineKeys.size} itens pré-existentes). Aguardando Make...`,
+      `Baseline já capturado (${baseline.size} itens pré-existentes). Aguardando Make...`,
     );
-  } catch (error) {
-    console.warn("Não foi possível buscar o estado inicial da planilha:", error);
   }
 
   while (Date.now() - startTime < timeout) {
     try {
       const result = await fetchAllSheets(sheetId);
 
-      // ✅ Filtra: só ficam os itens que NÃO estavam no baseline
-      const newItems = filterNewItems(result, baselineKeys);
+      // Filtra: só ficam os itens que NÃO estavam no baseline
+      const newItems = filterNewItems(result, baseline);
+
       const hasNewResults =
         newItems.corretos.length > 0 ||
         newItems.divergentes.length > 0 ||
@@ -142,10 +151,13 @@ onProgress?: (message: string) => void,
         newItems.faltantes.length > 0;
 
       if (hasNewResults) {
-        onProgress?.(
-          `Análise concluída · ${newItems.corretos.length + newItems.divergentes.length + newItems.incorretos.length + newItems.faltantes.length} itens novos detectados.`,
-        );
-        return newItems; // ✅ Retorna apenas os itens desta análise
+        const totalNew =
+          newItems.corretos.length +
+          newItems.divergentes.length +
+          newItems.incorretos.length +
+          newItems.faltantes.length;
+        onProgress?.(`Análise concluída · ${totalNew} itens novos detectados.`);
+        return newItems; // ✅ Retorna apenas itens desta análise
       }
 
       onProgress?.("Processando com IA e comparando com a base de referência...");
